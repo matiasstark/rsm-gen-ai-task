@@ -1,8 +1,8 @@
 import asyncio
 from pathlib import Path
-from pdf_ingest import load_pdf_chunks
-from embeddings import embed_texts
-from db import insert_chunks
+from rag_microservice.pdf_ingest import load_pdf_chunks
+from rag_microservice.embeddings import embed_texts
+from rag_microservice.db import insert_chunks
 
 async def main():
     pdf_path = Path(__file__).parent / "documents" / "short_pdf_CV.pdf"

@@ -1,5 +1,5 @@
 import asyncio
-from db import get_connection
+from rag_microservice.db import get_connection
 
 async def count_rows():
     conn = await get_connection()

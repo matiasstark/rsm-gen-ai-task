@@ -1,5 +1,5 @@
 from pathlib import Path
-from pdf_ingest import load_pdf_chunks
+from rag_microservice.pdf_ingest import load_pdf_chunks
 
 if __name__ == "__main__":
     pdf_path = Path(__file__).parent / "documents" / "short_pdf_CV.pdf"

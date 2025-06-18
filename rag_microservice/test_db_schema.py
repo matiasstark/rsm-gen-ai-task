@@ -1,6 +1,5 @@
 import asyncio
-import asyncpg
-from db import get_connection
+from rag_microservice.db import get_connection
 
 async def check_table():
     conn = await get_connection()

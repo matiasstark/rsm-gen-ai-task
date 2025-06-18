@@ -12,5 +12,22 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./initdb:/docker-entrypoint-initdb.d
+
+  api:
+    build: .
+    container_name: rag_fastapi
+    depends_on:
+      - db
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ragdb
+      POSTGRES_USER: raguser
+      POSTGRES_PASSWORD: ragpass
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./rag_microservice/documents:/app/rag_microservice/documents
+
 volumes:
   pgdata: 
