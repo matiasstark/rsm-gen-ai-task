@@ -67,9 +67,15 @@ class ObservabilityManager:
         # Initialize LangSmith if API key is available
         langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
         if langsmith_api_key:
+            # Set required environment variables for LangSmith
+            os.environ["LANGCHAIN_TRACING_V2"] = "true"
+            os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
+            os.environ["LANGCHAIN_API_KEY"] = langsmith_api_key
+            os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "rag-microservice")
+            
             self.langsmith_client = LangSmithClient(api_key=langsmith_api_key)
             self.langchain_tracer = LangChainTracer()
-            logger.info("LangSmith initialized")
+            logger.info("LangSmith initialized", project=os.environ["LANGCHAIN_PROJECT"])
     
     def log_request(self, endpoint: str, method: str, status_code: int, duration: float, **kwargs):
         """Log incoming request details."""

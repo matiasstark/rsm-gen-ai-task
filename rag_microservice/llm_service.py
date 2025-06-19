@@ -19,11 +19,13 @@ class LLMService:
         self.model_name = model_name
         self.temperature = temperature
         
-        # Initialize the LLM
+        # Initialize the LLM with LangSmith tracing
         self.llm = ChatOpenAI(
             model=model_name,
             temperature=temperature,
-            openai_api_key=os.getenv("OPENAI_API_KEY")
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            # Enable LangSmith tracing
+            callbacks=[obs_manager.langchain_tracer] if obs_manager.langchain_tracer else None
         )
         
         # Define the system prompt for RAG responses
