@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from rag_microservice.embeddings import embed_texts
 from rag_microservice.db import create_table, insert_chunks, similarity_search, get_connection, delete_site_chunks, truncate_table, drop_table, count_chunks
 from rag_microservice.unified_scraper import UnifiedWebScraper
+from rag_microservice.llm_service import LLMService
 
 app = FastAPI(
     title="RSM RAG Microservice",
@@ -101,6 +102,10 @@ async def ingest(request: IngestRequest):
 
 @app.post("/query", response_model=QueryResponse, tags=["RSM main methods"])
 async def query(request: QueryRequest):
+    # Initialize LLM service
+    llm_service = LLMService()
+    
+    # Perform semantic search
     query_embedding = embed_texts([request.question])[0]
     results = await similarity_search(
         query_embedding, 
@@ -110,8 +115,8 @@ async def query(request: QueryRequest):
     if not results:
         raise HTTPException(status_code=404, detail="No relevant chunks found.")
     
-    # For demo, just concatenate the top chunks as the answer
-    answer = "\n".join([r["text"] for r in results])
+    # Generate response using LLM
+    llm_response = llm_service.generate_response_with_sources(request.question, results)
     
     # Create source chunks with all metadata
     sources = [
@@ -126,4 +131,7 @@ async def query(request: QueryRequest):
         for r in results
     ]
     
-    return QueryResponse(answer=answer, sources=sources) 
+    return QueryResponse(
+        answer=llm_response["answer"], 
+        sources=sources
+    ) 
