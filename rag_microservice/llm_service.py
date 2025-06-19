@@ -1,11 +1,14 @@
 import os
+import time
 from typing import List, Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts import ChatPromptTemplate
 
+from rag_microservice.observability import obs_manager, instrument_operation
+
 class LLMService:
-    def __init__(self, model_name: str = "gpt-3.5-turbo", temperature: float = 0.1):
+    def __init__(self, model_name: str = "gpt-4o-mini", temperature: float = 0.1):
         """
         Initialize the LLM service.
         
@@ -35,6 +38,7 @@ Your task is to:
 
 Always be honest about what you know and don't know based on the provided context."""
 
+    @instrument_operation("generate_response")
     def generate_response(self, question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
         """
         Generate a response based on the question and retrieved chunks.
@@ -46,33 +50,54 @@ Always be honest about what you know and don't know based on the provided contex
         Returns:
             Generated response string
         """
-        if not retrieved_chunks:
-            return "I couldn't find any relevant information to answer your question."
+        start_time = time.time()
         
-        # Format the context from retrieved chunks
-        context_parts = []
-        for i, chunk in enumerate(retrieved_chunks, 1):
-            source_info = f"[Source {i}]"
-            if chunk.get("source_type"):
-                source_info += f" {chunk['source_type']}"
-            if chunk.get("section_name"):
-                source_info += f" - {chunk['section_name']}"
-            if chunk.get("url"):
-                source_info += f" ({chunk['url']})"
+        # Create a Langfuse trace for LLM generation
+        trace = obs_manager.create_langfuse_trace(
+            name="llm-generation",
+            metadata={
+                "model": self.model_name,
+                "question": question,
+                "num_sources": len(retrieved_chunks)
+            }
+        )
+        
+        try:
+            if not retrieved_chunks:
+                return "I couldn't find any relevant information to answer your question."
             
-            context_parts.append(f"{source_info}\n{chunk['text']}\n")
-        
-        context = "\n".join(context_parts)
-        
-        # Create the user message with context and question
-        user_message = f"""Context:
+            # Create span for prompt preparation
+            prompt_span = obs_manager.create_langfuse_span(trace, "prepare-prompt")
+            
+            # Format the context from retrieved chunks
+            context_parts = []
+            for i, chunk in enumerate(retrieved_chunks, 1):
+                source_info = f"[Source {i}]"
+                if chunk.get("source_type"):
+                    source_info += f" {chunk['source_type']}"
+                if chunk.get("section_name"):
+                    source_info += f" - {chunk['section_name']}"
+                if chunk.get("url"):
+                    source_info += f" ({chunk['url']})"
+                
+                context_parts.append(f"{source_info}\n{chunk['text']}\n")
+            
+            context = "\n".join(context_parts)
+            
+            # Create the user message with context and question
+            user_message = f"""Context:
 {context}
 
 Question: {question}
 
 Please provide a comprehensive answer based on the context above. If the context doesn't contain enough information to fully answer the question, please say so and provide what information is available."""
 
-        try:
+            if prompt_span:
+                prompt_span.end(metadata={"context_length": len(context), "question_length": len(question)})
+            
+            # Create span for LLM call
+            llm_span = obs_manager.create_langfuse_span(trace, "openai-call")
+            
             # Generate response using the LLM
             messages = [
                 SystemMessage(content=self.system_prompt),
@@ -80,10 +105,40 @@ Please provide a comprehensive answer based on the context above. If the context
             ]
             
             response = self.llm.invoke(messages)
+            duration = time.time() - start_time
+            
+            if llm_span:
+                llm_span.end(metadata={
+                    "model": self.model_name,
+                    "input_tokens": len(user_message.split()),
+                    "output_tokens": len(response.content.split())
+                })
+            
+            # Log the operation
+            obs_manager.log_llm_operation(
+                model=self.model_name,
+                duration=duration,
+                input_tokens=len(user_message.split()),
+                output_tokens=len(response.content.split()),
+                num_chunks=len(retrieved_chunks)
+            )
+            
             return response.content
             
         except Exception as e:
+            duration = time.time() - start_time
+            obs_manager.log_error("generate_response", e, model=self.model_name, num_chunks=len(retrieved_chunks))
+            
+            # Log error in trace if available
+            if trace:
+                error_span = trace.span(name="error", level="ERROR")
+                error_span.end(metadata={"error": str(e), "error_type": type(e).__name__})
+            
             return f"Error generating response: {str(e)}"
+        finally:
+            # Flush traces to ensure they are sent to Langfuse
+            if trace:
+                obs_manager.flush_langfuse()
 
     def generate_response_with_sources(self, question: str, retrieved_chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
         """

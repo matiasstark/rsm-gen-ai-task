@@ -1,6 +1,9 @@
 import os
 import asyncpg
+import time
 from typing import Optional, List, Dict, Any
+
+from rag_microservice.observability import obs_manager, instrument_operation
 
 DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
 DB_PORT = int(os.getenv("POSTGRES_PORT", 5432))
@@ -107,8 +110,11 @@ async def insert_chunks(chunks: List[Dict[str, Any]], document_name: str) -> Non
     finally:
         await conn.close()
 
+@instrument_operation("similarity_search")
 async def similarity_search(query_embedding: List[float], document_name: str = None, source_type: str = None, top_k: int = 5) -> List[Dict[str, Any]]:
     conn = await get_connection()
+    start_time = time.time()
+    
     try:
         # Build dynamic query based on filters
         query = f"""
@@ -133,6 +139,18 @@ async def similarity_search(query_embedding: List[float], document_name: str = N
         query += f" ORDER BY embedding <-> $1 LIMIT {top_k}"
         
         rows = await conn.fetch(query, *params)
+        duration = time.time() - start_time
+        
+        # Log the operation
+        obs_manager.log_search_operation(
+            operation="similarity_search",
+            duration=duration,
+            num_results=len(rows),
+            top_k=top_k,
+            document_name=document_name,
+            source_type=source_type
+        )
+        
         return [
             {
                 "id": row["id"],
@@ -145,5 +163,9 @@ async def similarity_search(query_embedding: List[float], document_name: str = N
             }
             for row in rows
         ]
+    except Exception as e:
+        duration = time.time() - start_time
+        obs_manager.log_error("similarity_search", e, top_k=top_k, document_name=document_name, source_type=source_type)
+        raise
     finally:
         await conn.close() 
