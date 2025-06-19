@@ -21,9 +21,14 @@ RUN poetry config virtualenvs.create false \
 # Copy app code
 COPY rag_microservice ./rag_microservice
 COPY initdb ./initdb
+COPY init_db_standalone.py ./init_db_standalone.py
+COPY startup.sh ./startup.sh
+
+# Make startup script executable
+RUN chmod +x startup.sh
 
 # Expose port
 EXPOSE 8000
 
 # Entrypoint
-CMD ["uvicorn", "rag_microservice.api:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["./startup.sh"] 

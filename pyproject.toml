@@ -23,6 +23,8 @@ langsmith = "^0.0.69"
 structlog = "^23.2.0"
 prometheus-client = "^0.19.0"
 asyncpg = "^0.30.0"
+beautifulsoup4 = "^4.13.4"
+requests = "^2.32.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
