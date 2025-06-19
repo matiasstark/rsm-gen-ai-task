@@ -35,3 +35,29 @@ OPENAI_API_KEY=your_openai_api_key_here
 - `POSTGRES_USER`: Database username (default: raguser)
 - `POSTGRES_PASSWORD`: Database password (use a strong password)
 - `OPENAI_API_KEY`: Your OpenAI API key for LLM integration 
+
+
+## Quick getting started:
+
+After run the docker services (API and DB). We need to apply the Scrapping/Chunking/Insertion of both sites. 
+
+For this use the API docs interface in localhost:8000/docs.
+
+Use the endpoint /ingest 2 times:
+- First time with JSON input: {
+  "site": "think_python"
+}
+
+
+Wait for the process that should ingest 301 chunks and then, use it a second time with JSON input: {
+  "site": "pep8"
+}
+
+that should ingest 28 chunks more.
+
+After this, the DB should have 329 rows. You can check this using the another endpoint /count
+
+Finally, you are ready to test the endpoint /query.
+Please give instructions in English because documents are in English and the embeddings model transformer I used apply only with english too.
+
+Best! :)
